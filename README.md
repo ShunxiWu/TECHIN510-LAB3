@@ -2,6 +2,7 @@
 
 ## Overview
 check: https://axi-techin510-lab3-theburntbook.azurewebsites.net/
+
 "The Burnt Book" is a web application designed for students to anonymously share gossip about their peers. The purpose is to create a platform for gaining insights into the daily lives of fellow students. Users can submit gossip entries and confirm or deny the accuracy of submitted gossip.
 
 ## How to Run
