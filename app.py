@@ -6,13 +6,18 @@ import streamlit as st
 from pydantic import BaseModel
 import streamlit_pydantic as sp
 
+PG_USER = "shunxiwu"
+PG_PASSWORD = "123ZhaiXia**SongGeiNi"
+PG_HOST = "shunxiwu.postgres.database.azure.com"
+PG_PORT = 5432  # Replace with your actual port
+
 # Connect to our database
 DB_CONFIG = os.getenv("DB_TYPE")
 if DB_CONFIG == 'PG':
     PG_USER = os.getenv("PG_USER")
-    con = psycopg2.connect(f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/todoapp?connect_timeout=10&application_name=todoapp")
+    con = psycopg2.connect(f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/burnbook?connect_timeout=10&application_name=burnbook")
 else:
-    con = sqlite3.connect("todoapp.sqlite", isolation_level=None)
+    con = sqlite3.connect("burn_book.sqlite", isolation_level=None)
 cur = con.cursor()
 
 # Create the table
@@ -21,8 +26,8 @@ cur.execute(
     CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY,
         name TEXT,
-        description TEXT,
-        is_done BOOLEAN
+        Gossip TEXT,
+        is_confirmed BOOLEAN
     )
     """
 )
@@ -30,29 +35,61 @@ cur.execute(
 # Define our Form
 class Task(BaseModel):
     name: str
-    description: str
-    is_done: bool
+    gossip: str
+    is_confirmed: bool
 
 # This function will be called when the check mark is toggled, this is called a callback function
-def toggle_is_done(is_done, row):
+def toggle_is_confirmed(is_confirmed, row, cur):
     cur.execute(
         """
-        UPDATE tasks SET is_done = ? WHERE id = ?
+        UPDATE tasks SET is_confirmed = ? WHERE id = ?
         """,
-        (is_done, row[0]),
+        (is_confirmed, row[0]),
+    )
+
+# Function to delete a gossip
+def delete_gossip(gossip_id, cur):
+    cur.execute(
+        """
+        DELETE FROM tasks WHERE id = ?
+        """,
+        (gossip_id,),
     )
 
 def main():
-    st.title("Todo App")
+    st.header("🔥 The Burnt Book 🔥")
+    st.subheader("Anonymously Share Your Friends' Gossips")
+
+
+    # Connect to our database inside the main function
+    DB_CONFIG = os.getenv("DB_TYPE")
+    if DB_CONFIG == 'PG':
+        PG_USER = os.getenv("PG_USER")
+        con = psycopg2.connect(f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/burnbook?connect_timeout=10&application_name=burnbook")
+    else:
+        con = sqlite3.connect("burn_book.sqlite", isolation_level=None, check_same_thread=False)
+    cur = con.cursor()
+
+    # Create the table
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            Gossip TEXT,
+            is_confirmed BOOLEAN
+        )
+        """
+    )
 
     # Create a Form using the streamlit-pydantic package, just pass it the Task Class
     data = sp.pydantic_form(key="task_form", model=Task)
     if data:
         cur.execute(
             """
-            INSERT INTO tasks (name, description, is_done) VALUES (?, ?, ?)
+            INSERT INTO tasks (name, gossip, is_confirmed) VALUES (?, ?, ?)
             """,
-            (data.name, data.description, data.is_done),
+            (data.name, data.gossip, data.is_confirmed),
         )
 
     data = cur.execute(
@@ -61,27 +98,20 @@ def main():
         """
     ).fetchall()
 
-    # HINT: how to implement a Edit button?
-    # if st.query_params.get('id') == "123":
-    #     st.write("Hello 123")
-    #     st.markdown(
-    #         f'<a target="_self" href="/" style="display: inline-block; padding: 6px 10px; background-color: #4CAF50; color: white; text-align: center; text-decoration: none; font-size: 12px; border-radius: 4px;">Back</a>',
-    #         unsafe_allow_html=True,
-    #     )
-    #     return
-
+    # HINT: how to implement an Edit button?
     cols = st.columns(3)
-    cols[0].write("Done?")
+    cols[0].write("Confirmed?")
     cols[1].write("Name")
-    cols[2].write("Description")
+    cols[2].write("Gossip")
+
     for row in data:
         cols = st.columns(3)
-        cols[0].checkbox('is_done', row[3], label_visibility='hidden', key=row[0], on_change=toggle_is_done, args=(not row[3], row))
+        cols[0].checkbox('is_confirmed', row[3], label_visibility='hidden', key=row[0], on_change=toggle_is_confirmed, args=(not row[3], row, cur))
         cols[1].write(row[1])
         cols[2].write(row[2])
-        # cols[2].markdown(
-        #     f'<a target="_self" href="/?id=123" style="display: inline-block; padding: 6px 10px; background-color: #4CAF50; color: white; text-align: center; text-decoration: none; font-size: 12px; border-radius: 4px;">Action Text on Button</a>',
-        #     unsafe_allow_html=True,
-        # )
 
-main()
+        if st.button(f"Delete {row[1]}", key=f"delete_button_{row[0]}"):
+            delete_gossip(row[0], cur)
+
+if __name__ == "__main__":
+    main()
